@@ -3,25 +3,54 @@
 # Sets up the SQLAlchemy engine and session for connecting to MySQL.
 # ─────────────────────────────────────────────────────────────────────────────
 
+import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+# Load environment variables from a .env file if present
+load_dotenv()
 
 # ── Connection config ──────────────────────────────────────────────────────
-# Using URL.create() instead of a plain string so that special characters
-# in the password (e.g. $, @, #) are automatically URL-encoded and never
-# break the connection string parser.
-DATABASE_URL = URL.create(
-    drivername="mysql+pymysql",
-    username="root",
-    password="SanthosH21",   # special chars are handled safely here
-    host="localhost",
-    database="notes_db",
-)
+# Supports cloud deployment (via DATABASE_URL or individual DB_* env vars)
+# with local fallback.
+raw_db_url = os.getenv("DATABASE_URL")
 
-# ── Engine ─────────────────────────────────────────────────────────────────
-engine = create_engine(DATABASE_URL, echo=True)
+if raw_db_url:
+    # Ensure mysql+pymysql driver is specified if provided as mysql://
+    if raw_db_url.startswith("mysql://"):
+        raw_db_url = raw_db_url.replace("mysql://", "mysql+pymysql://", 1)
+    DATABASE_URL = raw_db_url
+else:
+    db_user = os.getenv("DB_USER", "root")
+    db_pass = os.getenv("DB_PASSWORD", "SanthosH21")
+    db_host = os.getenv("DB_HOST", "localhost")
+    db_port = int(os.getenv("DB_PORT", "3306"))
+    db_name = os.getenv("DB_NAME", "notes_db")
+
+    DATABASE_URL = URL.create(
+        drivername="mysql+pymysql",
+        username=db_user,
+        password=db_pass,
+        host=db_host,
+        port=db_port,
+        database=db_name,
+    )
+
+# ── Engine configuration ──────────────────────────────────────────────────
+connect_args = {}
+if os.getenv("DB_SSL", "false").lower() in ("true", "1", "yes"):
+    connect_args["ssl"] = {"ssl_mode": "REQUIRED"}
+
+# pool_pre_ping=True is essential for serverless platforms like Vercel
+# to automatically recover if an idle connection was closed by the DB server.
+engine = create_engine(
+    DATABASE_URL,
+    echo=os.getenv("SQL_ECHO", "false").lower() in ("true", "1", "yes"),
+    pool_pre_ping=True,
+    connect_args=connect_args,
+)
 
 # ── Session factory ────────────────────────────────────────────────────────
 # autocommit=False  → changes are NOT saved until session.commit() is called

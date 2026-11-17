@@ -4,6 +4,7 @@
 # Defines all REST API routes and wires them to the CRUD helpers.
 # ─────────────────────────────────────────────────────────────────────────────
 
+import os
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -14,7 +15,10 @@ import schemas
 from database import engine, get_db
 
 # ── Create all tables in MySQL if they don't exist yet ─────────────────────
-models.Base.metadata.create_all(bind=engine)
+try:
+    models.Base.metadata.create_all(bind=engine)
+except Exception as exc:
+    print(f"[Warning] Database tables could not be initialized automatically: {exc}")
 
 # ── FastAPI application instance ───────────────────────────────────────────
 app = FastAPI(
@@ -24,14 +28,26 @@ app = FastAPI(
 )
 
 # ── CORS Middleware ────────────────────────────────────────────────────────
-# Allow the React dev server (port 5173) to communicate with this backend.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # React Vite default port
-    allow_credentials=True,
-    allow_methods=["*"],   # GET, POST, PUT, DELETE, OPTIONS
-    allow_headers=["*"],
-)
+# Configure allowed origins from ALLOWED_ORIGINS env var (comma-separated),
+# or allow all origins by default for cloud deployments.
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "").strip()
+if allowed_origins_env:
+    allowed_origins = [orig.strip() for orig in allowed_origins_env.split(",") if orig.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 # ── Health check ───────────────────────────────────────────────────────────

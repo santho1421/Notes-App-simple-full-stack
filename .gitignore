@@ -1,0 +1,26 @@
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Vercel
+.vercel/
+
+# Node & Frontend
+node_modules/
+dist/
+.vite/
+*.local
+
+# Logs
+*.log

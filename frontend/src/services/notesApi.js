@@ -6,8 +6,8 @@
 
 import axios from "axios";
 
-// Base URL of the FastAPI backend
-const BASE_URL = "http://localhost:8000";
+// Base URL of the FastAPI backend (reads VITE_API_BASE_URL in production, falls back to local)
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 // Create an Axios instance with the base URL pre-configured
 const api = axios.create({
