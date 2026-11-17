@@ -39,7 +39,9 @@ else:
     )
 
 # ── Engine configuration ──────────────────────────────────────────────────
-connect_args = {}
+connect_args = {
+    "connect_timeout": 5,
+}
 if os.getenv("DB_SSL", "false").lower() in ("true", "1", "yes"):
     connect_args["ssl"] = {"ssl_mode": "REQUIRED"}
 

@@ -6,8 +6,10 @@
 
 import os
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 import models
 import crud
@@ -28,25 +30,33 @@ app = FastAPI(
 )
 
 # ── CORS Middleware ────────────────────────────────────────────────────────
-# Configure allowed origins from ALLOWED_ORIGINS env var (comma-separated),
-# or allow all origins by default for cloud deployments.
-allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "").strip()
-if allowed_origins_env:
-    allowed_origins = [orig.strip() for orig in allowed_origins_env.split(",") if orig.strip()]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allowed_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
+# allow_origin_regex matches any http/https origin (e.g. localhost, Vercel frontend)
+# and reflects it back with credentials support, avoiding CORS blocking.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"^https?://.*",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ── Global Database Exception Handler ──────────────────────────────────────
+# Ensures that database connection failures return a proper JSON response
+# with CORS headers attached, rather than an unhandled 500/timeout crash.
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "error": "Database Connection Failed",
+            "detail": (
+                "The backend cannot reach the MySQL database. "
+                "If running on Vercel, please provide a cloud database connection string "
+                "via the DATABASE_URL environment variable in your Vercel Project Settings."
+            ),
+            "internal_error": str(exc),
+        },
     )
 
 
